@@ -32,7 +32,7 @@ product regardless of how training goes.
 
 | | Milestone | Status |
 |---|---|---|
-| M1 | Research complete, stack fixed | Partial — decision record not written, benchmarks not run |
+| M1 | Research complete, stack fixed | Segmentation half closed 28 Oct — see [the decision record](research/phase1-segmentation/README.md). Geometry half open. |
 | M2 | Dataset labelled (~500 images) | Not started |
 | **M3** | **Thin end-to-end slice** | **Done** |
 | M4 | Model integrated | Not started |
@@ -40,13 +40,24 @@ product regardless of how training goes.
 | M6 | Application and site deployed | Partial — company site exists, visualizer not ported |
 | M7 | Validated and documented | Not started |
 
-The next two tasks on the critical path, in order:
+The segmentation benchmark is done and it changed the plan. SAM 2 reproduces
+hand-marked **ground** surfaces at 0.88–0.92 IoU from a single click, but tops
+out at 0.30–0.65 on **walls**, because it returns a visually coherent region —
+the whole building, roof included — rather than a semantic surface with the
+windows cut out. That is measured evidence for fine-tuning rather than shipping
+an off-the-shelf model, and it pushes the Phase 2 labelling estimate from 9
+hours to 12–14. Full reasoning in
+[the decision record](research/phase1-segmentation/README.md).
 
-1. Run SAM2 on 10 photos from the company archive. This closes half of M1 and
-   unblocks the model-assisted labelling that Phase 2 depends on.
-2. Photograph proper material reference sheets: about 3 by 3 m of finished work,
+The next tasks on the critical path, in order:
+
+1. Photograph proper material reference sheets: about 3 by 3 m of finished work,
    in even light, with a tape measure in frame. Longest lead time in the project,
    weather-dependent, and nothing else can absorb the delay.
+2. Begin Phase 2 labelling, prompting per part rather than per surface and
+   erasing openings by hand, as the decision record sets out.
+3. Close the geometry half of M1: monocular surface normals versus vanishing
+   lines. Less urgent, because the proof of concept already works manually.
 
 ## Run the proof of concept
 
@@ -107,6 +118,7 @@ effort is deliberately concentrated.
 | `poc/source/` | Original photographs |
 | `poc/assets/materials/` | Seamless sheets, plus `*_raw.jpg` as cut from the photos |
 | `poc/demo-images/` | Before/after and pipeline images for slides |
+| `research/phase1-segmentation/` | The M1 segmentation benchmark: script, decision record, result images |
 | `presentation/` | Sprint demo deck and its images |
 | `Stone Visualizer Demo.pdf` / `.pptx` | The delivered 1 October presentation |
 

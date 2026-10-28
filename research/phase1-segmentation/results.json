@@ -1,0 +1,167 @@
+{
+  "model": "facebook/sam2.1-hiera-tiny",
+  "rows": [
+    {
+      "house": "Brick house",
+      "surface": "Walls",
+      "mode": "1 point",
+      "iou_rendered": 0.413,
+      "iou_outline": 0.409,
+      "model_confidence": 0.003,
+      "seconds": 1.7
+    },
+    {
+      "house": "Brick house",
+      "surface": "Walls",
+      "mode": "3 points",
+      "iou_rendered": 0.479,
+      "iou_outline": 0.457,
+      "model_confidence": 0.645,
+      "seconds": 1.8
+    },
+    {
+      "house": "Brick house",
+      "surface": "Walls",
+      "mode": "box",
+      "iou_rendered": 0.51,
+      "iou_outline": 0.485,
+      "model_confidence": 0.859,
+      "seconds": 1.8
+    },
+    {
+      "house": "Brick house",
+      "surface": "Path",
+      "mode": "1 point",
+      "iou_rendered": 0.878,
+      "iou_outline": 0.876,
+      "model_confidence": 0.975,
+      "seconds": 2.0
+    },
+    {
+      "house": "Brick house",
+      "surface": "Path",
+      "mode": "3 points",
+      "iou_rendered": 0.898,
+      "iou_outline": 0.888,
+      "model_confidence": 0.912,
+      "seconds": 1.9
+    },
+    {
+      "house": "Brick house",
+      "surface": "Path",
+      "mode": "box",
+      "iou_rendered": 0.887,
+      "iou_outline": 0.887,
+      "model_confidence": 0.968,
+      "seconds": 1.9
+    },
+    {
+      "house": "Old rectory",
+      "surface": "Walls",
+      "mode": "1 point",
+      "iou_rendered": 0.329,
+      "iou_outline": 0.298,
+      "model_confidence": 0.836,
+      "seconds": 1.8
+    },
+    {
+      "house": "Old rectory",
+      "surface": "Walls",
+      "mode": "3 points",
+      "iou_rendered": 0.321,
+      "iou_outline": 0.307,
+      "model_confidence": 0.875,
+      "seconds": 1.8
+    },
+    {
+      "house": "Old rectory",
+      "surface": "Walls",
+      "mode": "box",
+      "iou_rendered": 0.395,
+      "iou_outline": 0.412,
+      "model_confidence": 0.839,
+      "seconds": 1.8
+    },
+    {
+      "house": "New cottage",
+      "surface": "Walls",
+      "mode": "1 point",
+      "iou_rendered": 0.395,
+      "iou_outline": 0.373,
+      "model_confidence": 0.888,
+      "seconds": 1.9
+    },
+    {
+      "house": "New cottage",
+      "surface": "Walls",
+      "mode": "3 points",
+      "iou_rendered": 0.645,
+      "iou_outline": 0.583,
+      "model_confidence": 0.584,
+      "seconds": 1.9
+    },
+    {
+      "house": "New cottage",
+      "surface": "Walls",
+      "mode": "box",
+      "iou_rendered": 0.465,
+      "iou_outline": 0.423,
+      "model_confidence": 0.867,
+      "seconds": 1.9
+    },
+    {
+      "house": "New cottage",
+      "surface": "Path",
+      "mode": "1 point",
+      "iou_rendered": 0.904,
+      "iou_outline": 0.894,
+      "model_confidence": 0.874,
+      "seconds": 2.0
+    },
+    {
+      "house": "New cottage",
+      "surface": "Path",
+      "mode": "3 points",
+      "iou_rendered": 0.907,
+      "iou_outline": 0.897,
+      "model_confidence": 0.922,
+      "seconds": 1.9
+    },
+    {
+      "house": "New cottage",
+      "surface": "Path",
+      "mode": "box",
+      "iou_rendered": 0.916,
+      "iou_outline": 0.906,
+      "model_confidence": 0.981,
+      "seconds": 1.9
+    },
+    {
+      "house": "Prairie house",
+      "surface": "Lower walls",
+      "mode": "1 point",
+      "iou_rendered": 0.295,
+      "iou_outline": 0.295,
+      "model_confidence": 0.348,
+      "seconds": 1.8
+    },
+    {
+      "house": "Prairie house",
+      "surface": "Lower walls",
+      "mode": "3 points",
+      "iou_rendered": 0.374,
+      "iou_outline": 0.374,
+      "model_confidence": 0.626,
+      "seconds": 1.9
+    },
+    {
+      "house": "Prairie house",
+      "surface": "Lower walls",
+      "mode": "box",
+      "iou_rendered": 0.423,
+      "iou_outline": 0.423,
+      "model_confidence": 0.764,
+      "seconds": 2.0
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Python side of the project: the asset tooling in poc/tools/.
+# Install with:  py -3 -m pip install -r requirements.txt
+#
+# Verified working on Python 3.12.5 with the versions below.
+opencv-python>=4.10
+numpy>=2.0
+
+# Phase 1 and 3 dependencies (segmentation, plane estimation) are added
+# once the stack is fixed at M1. They are deliberately not pinned yet.

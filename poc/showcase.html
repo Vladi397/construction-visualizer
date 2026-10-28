@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stone Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a showroom. The house fills the left as a before/after slider, the choices sit in a narrow column on the right. */
+:root {
+  --bg: #e8eae6;          /* cured concrete */
+  --panel: #f6f7f4;
+  --ink: #1b1e1d;
+  --muted: #5b625f;
+  --line: #cdd1cb;
+  --stage: #d6d9d3;
+  --hatch: #c5c9c2;
+  --accent: #dd5427;      /* spirit level orange */
+  --accent-ink: #ffffff;
+  --font-display: "Archivo", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --radius: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131514; --panel: #1b1e1d; --ink: #e7e9e5; --muted: #9ba39e; --line: #313634;
+    --stage: #0e100f; --hatch: #1a1d1c; --accent: #f06f3e; --accent-ink: #1a0f0a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131514; --panel: #1b1e1d; --ink: #e7e9e5; --muted: #9ba39e; --line: #313634;
+  --stage: #0e100f; --hatch: #1a1d1c; --accent: #f06f3e; --accent-ink: #1a0f0a;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body);
+  padding-inline: clamp(16px, 2.4vw, 32px); padding-block: 0 32px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding-block: 20px 16px; }
+.brand { margin: 0; font: 800 30px/1 var(--font-display); font-stretch: 72%; text-transform: uppercase; letter-spacing: .01em; }
+.top p { margin: 0; color: var(--muted); font-size: 15px; }
+
+.room { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .room { grid-template-columns: minmax(0, 1fr); } }
+
+/* Stage */
+.stage-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; min-width: 0; }
+.stage { position: relative; height: clamp(360px, calc(100vh - 170px), 1000px); display: grid; place-items: center;
+  background-color: var(--stage); background-image: repeating-linear-gradient(45deg, var(--hatch) 0 1px, transparent 1px 11px); }
+@media (max-width: 960px) { .stage { height: min(70vh, 640px); } }
+.frame { position: relative; line-height: 0; touch-action: pan-y; user-select: none; --split: 50%; border-radius: 3px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 8px 28px rgba(0, 0, 0, .18); }
+.frame canvas { display: block; }
+#before { position: absolute; inset: 0; width: 100%; height: 100%; clip-path: inset(0 calc(100% - var(--split)) 0 0); }
+.frame.applied { cursor: ew-resize; }
+.divider { position: absolute; top: 0; bottom: 0; left: var(--split); width: 44px; margin-left: -22px; display: grid; place-items: center; cursor: ew-resize; outline: none; }
+.divider::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 6px rgba(0, 0, 0, .35); }
+.knob { position: relative; width: 40px; height: 40px; border-radius: 50%; background: #fff; display: grid; place-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .3); color: #1b1e1d; }
+.knob svg { width: 22px; height: 22px; }
+.divider:focus-visible .knob { outline: 3px solid var(--accent); outline-offset: 2px; }
+.pill { position: absolute; top: 12px; padding: 5px 10px; border-radius: 4px; background: rgba(0, 0, 0, .58); color: #fff;
+  font: 600 13px/1.2 var(--font-body); pointer-events: none; }
+.pill.left { left: 12px; } .pill.right { right: 12px; }
+.frame:not(.applied) .divider, .frame:not(.applied) .pill { display: none; }
+.frame:not(.applied) #before { clip-path: none; }
+.prompt { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 16px; border-radius: 99px;
+  background: var(--accent); color: var(--accent-ink); font: 600 14px/1.3 var(--font-body); white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25); pointer-events: none; }
+.frame.applied .prompt { display: none; }
+.busy { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 99px;
+  background: var(--ink); color: var(--bg); font: 500 12.5px/1.2 var(--font-mono); opacity: 0; transition: opacity .15s; pointer-events: none; }
+.busy.on { opacity: 1; }
+.caption { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.caption p { margin: 0; font-size: 14px; }
+.caption .area { font: 13px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.caption .btn { margin-left: auto; }
+
+/* Choices */
+.panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px 14px; }
+.step h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 16px/1 var(--font-display); font-stretch: 80%;
+  text-transform: uppercase; letter-spacing: .04em; }
+.step h2 .n { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--accent);
+  color: var(--accent-ink); font: 600 12px/1 var(--font-mono); letter-spacing: 0; }
+.note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+
+.houses { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.house { padding: 0; border: 0; background: none; text-align: left; display: grid; gap: 4px; }
+.house img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 4px; display: block; border: 2px solid transparent; }
+.house span { font-size: 12px; line-height: 1.25; color: var(--muted); }
+.house[aria-pressed="true"] img { border-color: var(--accent); }
+.house[aria-pressed="true"] span { color: var(--ink); font-weight: 600; }
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 10px; background: var(--bg); }
+.seg button { flex: 1; border: 0; background: transparent; padding: 6px 10px; font-weight: 600; font-size: 13px; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.stones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stone { padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); overflow: hidden; text-align: left; display: grid; }
+.stone img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.stone .t { padding: 6px 8px 8px; display: grid; gap: 1px; }
+.stone b { font-size: 13.5px; line-height: 1.25; font-weight: 600; }
+.stone small { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.stone[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.stone:hover { border-color: var(--muted); }
+
+.btn { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 12px; font-weight: 600; font-size: 13px; }
+.btn:hover { border-color: var(--muted); }
+.foot { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.foot a { color: inherit; }
+
+.dlg { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); padding: 14px;
+  width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.dlg::backdrop { background: rgba(0, 0, 0, .55); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.dlg-head h2 { margin: 0; font: 700 18px/1.2 var(--font-display); font-stretch: 80%; text-transform: uppercase; letter-spacing: .03em; }
+.dlg img { display: block; max-width: 100%; max-height: calc(100vh - 190px); margin-inline: auto; border-radius: 4px; }
+.dlg p { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.fatal { padding: 16px; background: #b8322a; color: #fff; }
+@media (prefers-reduced-motion: reduce) { .busy { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 class="brand">Stone Visualizer</h1>
+  <p>Pick a house, pick a stone, and see it in place before anything is ordered.</p>
+</header>
+
+<div class="room">
+  <section class="stage-card" aria-label="Preview">
+    <div class="stage" id="stage">
+      <div class="frame" id="frame">
+        <canvas id="after"></canvas>
+        <canvas id="before"></canvas>
+        <div class="divider" id="divider" role="slider" tabindex="0" aria-label="Compare before and after" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+          <span class="knob"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 6 3 12l6 6zM15 6l6 6-6 6z"/></svg></span>
+        </div>
+        <span class="pill left">Before</span><span class="pill right">After</span>
+        <div class="prompt" id="prompt">Choose a stone to see it here</div>
+      </div>
+      <div class="busy" id="busy" aria-live="polite">Laying stones</div>
+    </div>
+    <div class="caption">
+      <p id="capText"></p>
+      <span class="area" id="capArea"></span>
+      <button class="btn" type="button" id="save">Save this preview</button>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <section class="step">
+      <h2><span class="n">1</span>Choose a house</h2>
+      <div class="houses" id="houses"></div>
+    </section>
+    <section class="step">
+      <h2><span class="n">2</span>Choose a stone</h2>
+      <div class="seg" id="surfaces" role="group" aria-label="Surface" hidden></div>
+      <div class="stones" id="stones"></div>
+      <p class="note" id="stoneNote"></p>
+    </section>
+  </aside>
+</div>
+
+<footer class="foot">
+  <span>Every stone is cut from a photo of work we finished. A preview on screen can differ slightly in colour from the real stone.</span>
+  <a href="index.html" data-link="editor">Surface editor</a>
+</footer>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head"><h2 id="dlgTitle">Before and after</h2><button class="btn" type="button" id="dlgClose">Close</button></div>
+  <div id="dlgBody"></div>
+  <p>Right-click the image and choose "Save image as". On a phone, press and hold it.</p>
+</dialog>
+
+<script src="assets.js"></script>
+<script src="showcase.js"></script>
+<script>
+(() => {
+'use strict';
+
+const ASSETS = window.VIS_ASSETS;
+if (!ASSETS) {
+  document.body.insertAdjacentHTML('afterbegin', '<p class="fatal">assets.js was not found. Keep it in the same folder as this page.</p>');
+  return;
+}
+const $ = (s) => document.querySelector(s);
+const SHADE_R = 8, STRENGTH = 0.9;
+const KIND_LABEL = { wall: 'walls', ground: 'paths and terraces', floor: 'indoor floors' };
+
+/* ---------- Houses ----------
+   Built by tools/build_showcase.py into showcase.js. Each surface is one or more flat parts, and each part
+   has the corners of a rectangle on its plane (quad), that rectangle's real size in metres (dims) and a
+   mask of the area to cover, with windows, doors and plants already cut out. */
+const HOUSES = (window.VIS_SHOWCASE && window.VIS_SHOWCASE.houses) || [];
+
+/* ---------- Colour, random and geometry helpers (same maths as the editor) ---------- */
+const TO_LIN = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; TO_LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+const FROM_LIN = new Uint8ClampedArray(4096);
+for (let i = 0; i < 4096; i++) { const c = i / 4095; FROM_LIN[i] = Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); }
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function squareToQuad(q) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
+  const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+  const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+  let g = 0, h = 0;
+  if (Math.abs(sx) > 1e-9 || Math.abs(sy) > 1e-9) { const den = dx1 * dy2 - dx2 * dy1; g = (sx * dy2 - dx2 * sy) / den; h = (dx1 * sy - sx * dy1) / den; }
+  return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h, 1];
+}
+function inv3([a, b, c, d, e, f, g, h, i]) {
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det, B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+          C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+function rectAspect(q, w, h) {
+  const f = 0.6 * Math.hypot(w, h), cx = w / 2, cy = h / 2, H = squareToQuad(q);
+  const col = (x, y, z) => Math.hypot((x - cx * z) / f, (y - cy * z) / f, z);
+  const r = col(H[0], H[3], H[6]) / col(H[1], H[4], H[7]);
+  return Number.isFinite(r) && r > 0 ? r : 1;
+}
+function quickMedian(a, n) {
+  let lo = 0, hi = n - 1; const k = n >> 1;
+  while (lo < hi) {
+    const piv = a[(lo + hi) >> 1]; let i = lo, j = hi;
+    while (i <= j) { while (a[i] < piv) i++; while (a[j] > piv) j--; if (i <= j) { const t = a[i]; a[i] = a[j]; a[j] = t; i++; j--; } }
+    if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+  }
+  return a[k];
+}
+const mk = (opts) => { const c = document.createElement('canvas'); return [c, c.getContext('2d', opts)]; };
+function loadImage(src) {
+  return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error('Could not load image')); img.src = src; });
+}
+// Give the browser a moment to paint the "Laying stones" label before the heavy work.
+// A timer instead of requestAnimationFrame, so a hidden tab never stalls here.
+const nextFrame = () => new Promise((r) => setTimeout(r, 40));
+
+/* ---------- Photo and surface preparation (done once per house, then cached) ---------- */
+async function preparePhoto(src) {
+  const img = await loadImage(src);
+  // Light-map cell size follows the photo size, so small photos keep enough detail.
+  const w = img.naturalWidth, h = img.naturalHeight, f = Math.max(3, Math.round(Math.max(w, h) / 180));
+  const [c, x] = mk({ willReadFrequently: true }); c.width = w; c.height = h; x.drawImage(img, 0, 0);
+  const imgData = x.getImageData(0, 0, w, h), d = imgData.data;
+  const lw = Math.ceil(w / f), lh = Math.ceil(h / f);
+  const lum = new Float32Array(lw * lh), cnt = new Float32Array(lw * lh);
+  for (let y = 0; y < h; y++) {
+    const row = ((y / f) | 0) * lw;
+    for (let xx = 0; xx < w; xx++) {
+      const i = (y * w + xx) * 4, li = row + ((xx / f) | 0);
+      lum[li] += 0.2126 * TO_LIN[d[i]] + 0.7152 * TO_LIN[d[i + 1]] + 0.0722 * TO_LIN[d[i + 2]]; cnt[li]++;
+    }
+  }
+  for (let i = 0; i < lum.length; i++) lum[i] /= cnt[i];
+  return { w, h, f, canvas: c, imgData, lum, cnt, lw, lh };
+}
+
+async function preparePart(P, def) {
+  const { w, h } = P;
+  const img = await loadImage(def.mask);
+  const [c, x] = mk({ willReadFrequently: true }); c.width = w; c.height = h; x.drawImage(img, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data, mask = new Uint8Array(w * h);
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0, i = 0; y < h; y++) for (let xx = 0; xx < w; xx++, i++) {
+    const v = d[i * 4]; mask[i] = v;
+    if (v) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  return { quad: def.quad, dims: def.dims, mask, bbox: x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 } };
+}
+
+async function prepareSurface(P, def) {
+  const parts = await Promise.all(def.parts.map((pd) => preparePart(P, pd)));
+  lightMaps(P, parts);
+  return { name: def.name, kind: def.kind, seed: def.seed, strength: def.strength, parts, area: 0 };
+}
+
+// Light map: a wide median of the old surface's brightness removes its bricks and joints but keeps shadow edges.
+// Each part gets its own map, all scaled by one shared average, so a sunny face stays brighter than a shaded one.
+function lightMaps(P, parts) {
+  const { lw, lh, w, h, f } = P, R = SHADE_R, buf = new Float32Array((2 * R + 1) ** 2);
+  let sum = 0, count = 0;
+  for (const part of parts) {
+    const a = part.mask, cover = new Float32Array(lw * lh);
+    for (let y = 0; y < h; y++) { const row = ((y / f) | 0) * lw; for (let x = 0; x < w; x++) { const v = a[y * w + x]; if (v) cover[row + ((x / f) | 0)] += v; } }
+    const valid = new Uint8Array(lw * lh);
+    for (let i = 0; i < valid.length; i++) valid[i] = cover[i] / (255 * P.cnt[i]) > 0.5 ? 1 : 0;
+    const med = new Float32Array(lw * lh);
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const i = y * lw + x; if (!valid[i]) continue;
+      let n = 0;
+      for (let yy = Math.max(0, y - R); yy <= Math.min(lh - 1, y + R); yy++)
+        for (let xx = Math.max(0, x - R); xx <= Math.min(lw - 1, x + R); xx++) { const j = yy * lw + xx; if (valid[j]) buf[n++] = P.lum[j]; }
+      med[i] = quickMedian(buf, n);
+    }
+    const ratio = new Float32Array(lw * lh).fill(-1);
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const i = y * lw + x; if (!valid[i]) continue;
+      let s = 0, n = 0;
+      for (let yy = Math.max(0, y - 1); yy <= Math.min(lh - 1, y + 1); yy++)
+        for (let xx = Math.max(0, x - 1); xx <= Math.min(lw - 1, x + 1); xx++) { const j = yy * lw + xx; if (valid[j]) { s += med[j]; n++; } }
+      ratio[i] = s / n; sum += ratio[i]; count++;
+    }
+    // Grow the map past the mask edge so thin or ragged parts never sample empty cells.
+    for (let it = 0; it < 8; it++) {
+      const next = ratio.slice();
+      for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+        const i = y * lw + x; if (ratio[i] >= 0) continue;
+        let s = 0, n = 0;
+        if (x > 0 && ratio[i - 1] >= 0) { s += ratio[i - 1]; n++; }
+        if (x < lw - 1 && ratio[i + 1] >= 0) { s += ratio[i + 1]; n++; }
+        if (y > 0 && ratio[i - lw] >= 0) { s += ratio[i - lw]; n++; }
+        if (y < lh - 1 && ratio[i + lw] >= 0) { s += ratio[i + lw]; n++; }
+        if (n) next[i] = s / n;
+      }
+      ratio.set(next);
+    }
+    part.shade = ratio;
+  }
+  const mean = count ? sum / count : 1;
+  for (const part of parts) {
+    const r = part.shade;
+    let fallback = 0, fn = 0;
+    for (let i = 0; i < r.length; i++) if (r[i] >= 0) { fallback += r[i]; fn++; }
+    fallback = fn ? fallback / fn : mean;
+    for (let i = 0; i < r.length; i++) r[i] = (r[i] >= 0 ? r[i] : fallback) / (mean > 0 ? mean : 1);
+  }
+}
+
+/* ---------- Materials ---------- */
+const matCache = new Map();
+async function getMaterial(id) {
+  if (matCache.has(id)) return matCache.get(id);
+  const meta = ASSETS.materials.find((m) => m.id === id);
+  const img = await loadImage(meta.src);
+  const [c, x] = mk({ willReadFrequently: true }); c.width = img.naturalWidth; c.height = img.naturalHeight; x.drawImage(img, 0, 0);
+  const base = x.getImageData(0, 0, c.width, c.height);
+  const mips = [{ w: base.width, h: base.height, d: base.data, sx: 1, sy: 1 }];
+  while (mips.length < 9) {
+    const p = mips[mips.length - 1]; if (p.w <= 8 || p.h <= 8) break;
+    const w = Math.ceil(p.w / 2), h = Math.ceil(p.h / 2), d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      const ya = Math.min(2 * y, p.h - 1) * p.w, yb = Math.min(2 * y + 1, p.h - 1) * p.w;
+      for (let xx = 0; xx < w; xx++) {
+        const xa = Math.min(2 * xx, p.w - 1), xb = Math.min(2 * xx + 1, p.w - 1), o = (y * w + xx) * 4;
+        for (let k = 0; k < 3; k++) d[o + k] = (p.d[(ya + xa) * 4 + k] + p.d[(ya + xb) * 4 + k] + p.d[(yb + xa) * 4 + k] + p.d[(yb + xb) * 4 + k]) / 4;
+        d[o + 3] = 255;
+      }
+    }
+    mips.push({ w, h, d, sx: w / base.width, sy: h / base.height });
+  }
+  const m = { meta, mips }; matCache.set(id, m); return m;
+}
+const suits = (id, kind) => { const m = ASSETS.materials.find((x) => x.id === id); return !!m && (!m.suits || m.suits.includes(kind)); };
+
+/* ---------- Rendering one surface into the output image ---------- */
+let _r = 0, _g = 0, _b = 0;
+function samp(L, x, y) {
+  const W = L.w, H = L.h, d = L.d;
+  x = x * L.sx - 0.5; y = y * L.sy - 0.5;
+  let x0 = Math.floor(x), y0 = Math.floor(y); const fx = x - x0, fy = y - y0;
+  x0 %= W; if (x0 < 0) x0 += W; y0 %= H; if (y0 < 0) y0 += H;
+  const x1 = x0 + 1 === W ? 0 : x0 + 1, y1 = y0 + 1 === H ? 0 : y0 + 1;
+  const i00 = (y0 * W + x0) << 2, i10 = (y0 * W + x1) << 2, i01 = (y1 * W + x0) << 2, i11 = (y1 * W + x1) << 2;
+  const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+  _r = d[i00] * w00 + d[i10] * w10 + d[i01] * w01 + d[i11] * w11;
+  _g = d[i00 + 1] * w00 + d[i10 + 1] * w10 + d[i01 + 1] * w01 + d[i11 + 1] * w11;
+  _b = d[i00 + 2] * w00 + d[i10 + 2] * w10 + d[i01 + 2] * w01 + d[i11 + 2] * w11;
+}
+function renderSurface(P, sf, mat, out) {
+  // One seed per surface, so every part of a wall draws from the same stretch of the sheet.
+  const meta = mat.meta, rnd = mulberry32(sf.seed);
+  let ox = rnd() * meta.w, oy = rnd() * meta.h, mirror = rnd() < 0.5;
+  if (meta.snap) { ox = 0; oy = 0; mirror = false; }
+  let total = 0;
+  for (const part of sf.parts) total += renderPart(P, part, mat, out, ox, oy, mirror, sf.strength ?? STRENGTH);
+  return total;
+}
+function renderPart(P, part, mat, out, ox, oy, mirror, st) {
+  const bb = part.bbox; if (!bb) return 0;
+  const w = P.w, f = P.f, src = P.imgData.data, a = part.mask, meta = mat.meta, mips = mat.mips, maxL = mips.length - 1;
+  const [ia, ib, ic, id, ie, iF, ig, ih, ii] = inv3(squareToQuad(part.quad));
+  const kx = part.dims.w * 100 * meta.w / meta.widthCm, ky = part.dims.h * 100 * meta.h / meta.heightCm;
+  const slw = P.lw, slh = P.lh;
+  const sh = new Float32Array(part.shade.length);
+  for (let i = 0; i < sh.length; i++) sh[i] = Math.min(2.4, Math.max(0.12, Math.pow(part.shade[i], st)));
+  let area = 0;
+  for (let y = bb.y0; y < bb.y1; y++) {
+    const py = y + 0.5;
+    let fy = py / f - 0.5; if (fy < 0) fy = 0; if (fy > slh - 1) fy = slh - 1;
+    const yy = fy | 0, ty = fy - yy, r0 = yy * slw, r1 = Math.min(yy + 1, slh - 1) * slw;
+    for (let x = bb.x0; x < bb.x1; x++) {
+      const i = y * w + x, m = a[i]; if (!m) continue;
+      const px = x + 0.5, Wd = ig * px + ih * py + ii; if (Wd <= 1e-12) continue;
+      const u = (ia * px + ib * py + ic) / Wd, v = (id * px + ie * py + iF) / Wd;
+      const dudx = (ia - u * ig) / Wd, dudy = (ib - u * ih) / Wd, dvdx = (id - v * ig) / Wd, dvdy = (ie - v * ih) / Wd;
+      const am = m / 255;
+      area += Math.abs(dudx * dvdy - dudy * dvdx) * am;
+      let sx = u * kx, sy = v * ky;
+      const fp = Math.max(Math.hypot(dudx * kx, dvdx * ky), Math.hypot(dudy * kx, dvdy * ky));
+      if (mirror) sx = -sx;
+      sx += ox; sy += oy;
+      let lod = fp > 1 ? Math.log2(fp) : 0; if (lod > maxL) lod = maxL;
+      const l0 = lod | 0, t = lod - l0;
+      samp(mips[l0], sx, sy); let r = _r, g = _g, b = _b;
+      if (t > 0.02 && l0 < maxL) { samp(mips[l0 + 1], sx, sy); r += (_r - r) * t; g += (_g - g) * t; b += (_b - b) * t; }
+      let fx = px / f - 0.5; if (fx < 0) fx = 0; if (fx > slw - 1) fx = slw - 1;
+      const xx = fx | 0, tx = fx - xx, x2 = Math.min(xx + 1, slw - 1);
+      const k = (sh[r0 + xx] * (1 - tx) + sh[r0 + x2] * tx) * (1 - ty) + (sh[r1 + xx] * (1 - tx) + sh[r1 + x2] * tx) * ty;
+      r = FROM_LIN[Math.min(4095, (TO_LIN[(r + 0.5) | 0] * k * 4095) | 0)];
+      g = FROM_LIN[Math.min(4095, (TO_LIN[(g + 0.5) | 0] * k * 4095) | 0)];
+      b = FROM_LIN[Math.min(4095, (TO_LIN[(b + 0.5) | 0] * k * 4095) | 0)];
+      const o = i << 2;
+      out[o] = src[o] + (r - src[o]) * am; out[o + 1] = src[o + 1] + (g - src[o + 1]) * am; out[o + 2] = src[o + 2] + (b - src[o + 2]) * am;
+    }
+  }
+  return area * part.dims.w * part.dims.h;
+}
+
+/* ---------- Page state ---------- */
+const S = { house: null, P: null, surfaces: [], chosen: [], active: 0, lastByKind: {}, split: 50, cache: new Map() };
+const frame = $('#frame'), after = $('#after'), before = $('#before'), stage = $('#stage');
+const actx = after.getContext('2d'), bctx = before.getContext('2d');
+const matMeta = (id) => ASSETS.materials.find((m) => m.id === id);
+
+function busy(on) { $('#busy').classList.toggle('on', on); }
+
+async function selectHouse(h) {
+  S.house = h; busy(true); renderHouses(); await nextFrame();
+  let entry = S.cache.get(h.id);
+  if (!entry) {
+    const P = await preparePhoto(h.src);
+    entry = { P, surfaces: await Promise.all(h.surfaces.map((d) => prepareSurface(P, d))) };
+    S.cache.set(h.id, entry);
+  }
+  S.P = entry.P; S.surfaces = entry.surfaces; S.active = 0;
+  // A house starts as it is. Once the visitor has picked a stone for walls or paths, it carries over to the next house.
+  S.chosen = S.surfaces.map((sf) => { const id = S.lastByKind[sf.kind]; return id && suits(id, sf.kind) ? id : null; });
+  after.width = before.width = S.P.w; after.height = before.height = S.P.h;
+  bctx.drawImage(S.P.canvas, 0, 0);
+  fitStage();
+  await render();
+  busy(false);
+  renderPanel();
+}
+
+async function render() {
+  const P = S.P, out = new ImageData(P.w, P.h);
+  out.data.set(P.imgData.data);
+  for (let i = 0; i < S.surfaces.length; i++) {
+    const sf = S.surfaces[i], id = S.chosen[i];
+    sf.area = 0;
+    if (id) sf.area = renderSurface(P, sf, await getMaterial(id), out.data);
+  }
+  actx.putImageData(out, 0, 0);
+  frame.classList.toggle('applied', S.chosen.some(Boolean));
+  renderCaption();
+}
+
+async function chooseStone(id) {
+  const wasPlain = !S.chosen.some(Boolean);
+  S.chosen[S.active] = id; S.lastByKind[S.surfaces[S.active].kind] = id;
+  renderStones(); busy(true); await nextFrame();
+  await render(); busy(false);
+  if (wasPlain) sweep();
+}
+
+/* ---------- Before / after slider ---------- */
+function setSplit(v) {
+  S.split = Math.max(0, Math.min(100, v));
+  frame.style.setProperty('--split', S.split + '%');
+  $('#divider').setAttribute('aria-valuenow', String(Math.round(S.split)));
+}
+function sweep() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setSplit(50); return; }
+  const t0 = performance.now(), dur = 900;
+  const step = () => { const k = Math.min(1, (performance.now() - t0) / dur), e = 1 - Math.pow(1 - k, 3); setSplit(100 - 50 * e); if (k < 1) setTimeout(step, 16); };
+  setSplit(100); setTimeout(step, 16);
+}
+let dragging = false;
+const splitFromEvent = (e) => { const r = frame.getBoundingClientRect(); setSplit((e.clientX - r.left) / r.width * 100); };
+frame.addEventListener('pointerdown', (e) => { if (!frame.classList.contains('applied')) return; dragging = true; frame.setPointerCapture(e.pointerId); splitFromEvent(e); });
+frame.addEventListener('pointermove', (e) => { if (dragging) splitFromEvent(e); });
+frame.addEventListener('pointerup', () => { dragging = false; });
+frame.addEventListener('pointercancel', () => { dragging = false; });
+$('#divider').addEventListener('keydown', (e) => {
+  const d = { ArrowLeft: -5, ArrowRight: 5, Home: -100, End: 100 }[e.key];
+  if (d !== undefined) { e.preventDefault(); setSplit(S.split + d); }
+});
+
+function fitStage() {
+  if (!S.P) return;
+  const bw = stage.clientWidth - 24, bh = stage.clientHeight - 24;
+  const s = Math.min(bw / S.P.w, bh / S.P.h);
+  after.style.width = Math.floor(S.P.w * s) + 'px'; after.style.height = Math.floor(S.P.h * s) + 'px';
+}
+new ResizeObserver(fitStage).observe(stage);
+
+/* ---------- Panel ---------- */
+function renderHouses() {
+  const box = $('#houses'); box.textContent = '';
+  for (const h of HOUSES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'house'; b.setAttribute('aria-pressed', String(S.house === h));
+    const img = document.createElement('img'); img.alt = ''; img.src = h.src;
+    const t = document.createElement('span'); t.textContent = h.title;
+    b.append(img, t);
+    b.addEventListener('click', () => { if (S.house !== h) selectHouse(h); });
+    box.append(b);
+  }
+}
+function renderSurfaceTabs() {
+  const box = $('#surfaces'); box.textContent = '';
+  box.hidden = S.surfaces.length < 2;
+  S.surfaces.forEach((sf, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = sf.name; b.setAttribute('aria-pressed', String(i === S.active));
+    b.addEventListener('click', () => { S.active = i; renderPanel(); });
+    box.append(b);
+  });
+}
+function renderStones() {
+  const sf = S.surfaces[S.active], box = $('#stones'); box.textContent = '';
+  let list = ASSETS.materials.filter((m) => suits(m.id, sf.kind));
+  if (!list.length) list = ASSETS.materials;
+  for (const m of list) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'stone'; b.setAttribute('aria-pressed', String(S.chosen[S.active] === m.id));
+    b.innerHTML = `<img alt="" src="${m.src}"><span class="t"><b></b><small></small></span>`;
+    b.querySelector('b').textContent = m.name; b.querySelector('small').textContent = m.kind;
+    b.addEventListener('click', () => chooseStone(m.id));
+    box.append(b);
+  }
+  $('#stoneNote').textContent = `Showing stones for ${KIND_LABEL[sf.kind] || 'this surface'}.`;
+}
+function renderCaption() {
+  const parts = S.surfaces.map((sf, i) => (S.chosen[i] ? `${sf.name}: ${matMeta(S.chosen[i]).name}` : null)).filter(Boolean);
+  $('#capText').textContent = parts.length ? parts.join(' · ') : `Choose a stone for the ${S.surfaces[S.active].name.toLowerCase()}.`;
+  const area = S.surfaces.reduce((s, sf, i) => s + (S.chosen[i] ? sf.area : 0), 0);
+  $('#capArea').textContent = area > 0 ? `about ${area.toFixed(1)} m²` : '';
+  $('#save').hidden = !parts.length;
+}
+function renderPanel() { renderSurfaceTabs(); renderStones(); renderCaption(); }
+
+/* ---------- Save ---------- */
+const dlg = $('#dlg');
+$('#dlgClose').addEventListener('click', () => dlg.close());
+$('#save').addEventListener('click', () => {
+  const P = S.P, gap = 16, head = 56;
+  const [c, x] = mk(); c.width = P.w * 2 + gap; c.height = P.h + head;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(before, 0, head); x.drawImage(after, P.w + gap, head);
+  x.fillStyle = '#1b1e1d'; x.font = '600 26px "Public Sans", "Segoe UI", sans-serif'; x.textBaseline = 'middle';
+  x.fillText('Before', 10, head / 2); x.fillText('After: ' + $('#capText').textContent, P.w + gap + 10, head / 2);
+  const img = new Image(); img.alt = 'Before and after'; img.src = c.toDataURL('image/jpeg', 0.92);
+  const body = $('#dlgBody'); body.textContent = ''; body.append(img);
+  dlg.showModal();
+});
+
+selectHouse(HOUSES[0]).catch((err) => { console.error(err); busy(false); });
+})();
+</script>
+</body>
+</html>

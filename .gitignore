@@ -1,0 +1,53 @@
+# --- Generated build output ---------------------------------------
+# poc/web/ is written by tools/build_web.py from showcase.html + index.html.
+# Rebuild with: python tools/build_web.py
+poc/web/
+
+# Note: poc/assets.js and poc/showcase.js ARE tracked on purpose.
+# They are generated, but the POC's whole point is that a clone can be
+# opened with no install step. Rebuild them with:
+#   python tools/build_assets.py source
+#   python tools/build_showcase.py
+
+# --- Python -------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Machine learning artefacts (phase 3) -------------------------
+# Weights and checkpoints are too large for git. Keep them out and
+# record their provenance in the decision record instead.
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+runs/
+wandb/
+lightning_logs/
+
+# --- Node / Next.js (phase 5 app) ---------------------------------
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+
+# --- Editors and OS -----------------------------------------------
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Microsoft Office lock files ----------------------------------
+~$*

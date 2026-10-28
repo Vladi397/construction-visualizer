@@ -1,0 +1,26 @@
+# Normalise line endings for text, leave the working copy native on Windows.
+* text=auto
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.js   text eol=lf
+*.ts   text eol=lf
+*.css  text eol=lf
+
+# Generated bundles: large, machine-written, never hand-edited.
+# Marked binary so git does not diff or normalise megabytes of base64.
+poc/assets.js   -text -diff linguist-generated
+poc/showcase.js -text -diff linguist-generated
+
+# Binary assets.
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.pdf  binary
+*.docx binary
+*.pptx binary
+*.pt   binary
+*.pth  binary

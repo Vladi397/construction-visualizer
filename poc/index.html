@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stone Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a workbench. The photo stage fills the left, the steps of the flow stack in a column on the right. */
+:root {
+  --bg: #e8eae6;          /* cured concrete */
+  --panel: #f6f7f4;
+  --ink: #1b1e1d;
+  --muted: #5b625f;
+  --line: #cdd1cb;
+  --stage: #d6d9d3;
+  --hatch: #c5c9c2;
+  --accent: #dd5427;      /* spirit level orange */
+  --accent-ink: #ffffff;
+  --ok: #2d8653;          /* level bubble green */
+  --erase: #b8322a;
+  --font-display: "Archivo", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --radius: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131514; --panel: #1b1e1d; --ink: #e7e9e5; --muted: #9ba39e; --line: #313634;
+    --stage: #0e100f; --hatch: #1a1d1c; --accent: #f06f3e; --accent-ink: #1a0f0a; --ok: #4fbf7e; --erase: #ff6a5c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131514; --panel: #1b1e1d; --ink: #e7e9e5; --muted: #9ba39e; --line: #313634;
+  --stage: #0e100f; --hatch: #1a1d1c; --accent: #f06f3e; --accent-ink: #1a0f0a; --ok: #4fbf7e; --erase: #ff6a5c;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+  padding-inline: clamp(16px, 2.4vw, 32px); padding-block: 0 40px;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding-block: 18px 14px; }
+.brand { margin: 0; font: 800 28px/1 var(--font-display); font-stretch: 72%; letter-spacing: .01em; text-transform: uppercase; }
+.tag { font: 500 11.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 99px; padding: 6px 10px; }
+a.tag { color: var(--ink); text-decoration: none; }
+a.tag:hover { border-color: var(--accent); }
+.top p { margin: 0 0 0 auto; color: var(--muted); font-size: 13.5px; max-width: 46ch; }
+
+/* Demo scenes */
+.scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.scene { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left;
+  padding: 7px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.scene img { width: 52px; height: 52px; object-fit: cover; border-radius: 4px; display: block; }
+.scene b { display: block; font: 700 15px/1.2 var(--font-display); font-stretch: 85%; text-transform: uppercase; letter-spacing: .02em; }
+.scene span { display: block; font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+.scene[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Workbench */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+@media (max-width: 1000px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.stage-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; overflow: hidden; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 11px; font-weight: 600; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.brush { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.brush input { width: 90px; accent-color: var(--accent); }
+.readouts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12.5px/1.3 var(--font-mono); color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.readouts b { color: var(--ink); font-weight: 500; }
+.stage-box { position: relative; height: clamp(380px, calc(100vh - 230px), 1000px); display: grid; place-items: center;
+  background-color: var(--stage);
+  background-image: repeating-linear-gradient(45deg, var(--hatch) 0 1px, transparent 1px 11px); }
+.frame { position: relative; line-height: 0; }
+#ui { position: absolute; inset: 0; touch-action: none; }
+.hint { margin: 0; padding: 8px 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+.hint kbd { font: 500 12px var(--font-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+
+/* Steps column */
+.panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px 14px; }
+.step h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 16px/1 var(--font-display); font-stretch: 80%;
+  text-transform: uppercase; letter-spacing: .04em; }
+.step h2 .n { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--accent);
+  color: var(--accent-ink); font: 600 12px/1 var(--font-mono); letter-spacing: 0; }
+.note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+
+.gallery { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.gallery button { aspect-ratio: 3 / 4; padding: 0; border: 2px solid transparent; border-radius: 4px; overflow: hidden; background: var(--stage); }
+.gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery button[aria-pressed="true"] { border-color: var(--accent); }
+.gallery .upload { display: grid; place-items: center; align-content: center; gap: 2px; border: 1.5px dashed var(--muted); color: var(--muted);
+  font-size: 11.5px; font-weight: 600; line-height: 1.2; background: transparent; }
+.gallery .upload svg { width: 18px; height: 18px; }
+
+.dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dims label { display: grid; gap: 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.field { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.field input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 7px 8px; font: 15px var(--font-mono);
+  font-variant-numeric: tabular-nums; outline: none; }
+.field:focus-within { border-color: var(--accent); }
+.field span { padding-right: 9px; color: var(--muted); font: 13px var(--font-mono); text-transform: none; letter-spacing: 0; }
+.field.auto { border-style: dashed; }
+.field.auto input { color: var(--muted); }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin-top: 10px; }
+.check input { accent-color: var(--accent); margin-top: 3px; }
+.check small { display: block; color: var(--muted); font-size: 12px; }
+.range { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.range input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.range output { font-family: var(--font-mono); color: var(--ink); }
+
+.mats { display: grid; gap: 6px; }
+.mat { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left;
+  padding: 5px; border: 1px solid var(--line); border-radius: 6px; background: transparent; }
+.mat img { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block; }
+.mat .name { display: block; font-weight: 600; font-size: 14px; line-height: 1.25; }
+.mat .meta { display: block; font: 11.5px/1.35 var(--font-mono); color: var(--muted); }
+.mat[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seed { width: 110px; }
+.btn { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 12px; font-weight: 600; font-size: 13px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:hover { border-color: var(--muted); }
+.btn.primary:hover { filter: brightness(1.06); }
+.seedinfo { font: 12px/1.4 var(--font-mono); color: var(--muted); margin: 8px 0 0; }
+.exports { display: grid; gap: 6px; }
+.exports .btn { text-align: left; }
+
+/* Pipeline strip */
+.pipeline { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.pipeline li { border-top: 3px solid var(--ok); padding-top: 8px; min-width: 0; }
+.pipeline li.manual { border-top-color: var(--muted); border-top-style: dashed; }
+.pipeline h3 { margin: 0 0 4px; display: flex; gap: 8px; align-items: baseline; font: 700 15px/1.2 var(--font-display); font-stretch: 85%; text-transform: uppercase; letter-spacing: .03em; }
+.pipeline h3 small { font: 500 10.5px/1 var(--font-mono); letter-spacing: .06em; color: var(--muted); }
+.pipeline p { margin: 0; font-size: 13px; color: var(--muted); max-width: 48ch; }
+.chip { font: 600 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 6px; border-radius: 99px;
+  border: 1px solid currentColor; }
+.chip.ok { color: var(--ok); }
+.chip.todo { color: var(--muted); }
+
+.dlg { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); padding: 14px;
+  width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.dlg::backdrop { background: rgba(0, 0, 0, .55); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.dlg-head h2 { margin: 0; font: 700 18px/1.2 var(--font-display); font-stretch: 80%; text-transform: uppercase; letter-spacing: .03em; }
+.dlg img { display: block; max-width: 100%; max-height: calc(100vh - 190px); margin-inline: auto; border-radius: 4px; }
+.dlg pre { margin: 0; padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 13px/1.5 var(--font-mono);
+  overflow: auto; max-height: 55vh; user-select: all; }
+.dlg .note { margin: 10px 0 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px);
+  background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 6px; font-size: 13.5px; opacity: 0;
+  transition: opacity .2s, transform .2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.fatal { padding: 16px; background: var(--erase); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 class="brand">Stone Visualizer</h1>
+  <span class="tag">Proof of concept · M3 thin slice</span>
+  <a class="tag" href="showcase.html" data-link="showcase">Customer view</a>
+  <p>Every material below is cut from a photo of a real finished job, then laid onto a new photo with its perspective, size and light.</p>
+</header>
+
+<nav class="scenes" id="scenes" aria-label="Demo scenes"></nav>
+
+<div class="bench">
+  <section class="stage-card" aria-label="Preview">
+    <div class="stage-bar">
+      <div class="seg" id="modes" role="group" aria-label="View">
+        <button type="button" data-mode="edit" aria-pressed="true">Edit surface</button>
+        <button type="button" data-mode="compare" aria-pressed="false">Before / after</button>
+        <button type="button" data-mode="result" aria-pressed="false">Result</button>
+      </div>
+      <div class="seg" id="tools" role="group" aria-label="Tool">
+        <button type="button" data-tool="corners" aria-pressed="true">Corners</button>
+        <button type="button" data-tool="add" aria-pressed="false">Add area</button>
+        <button type="button" data-tool="erase" aria-pressed="false">Remove area</button>
+      </div>
+      <label class="brush" id="brushWrap" hidden>Brush <input id="brush" type="range" min="6" max="120" value="36"></label>
+      <div class="readouts" aria-live="polite">
+        <span>Surface <b id="rDims">...</b></span>
+        <span>Area <b id="rArea">...</b></span>
+        <span>Render <b id="rMs">...</b></span>
+      </div>
+    </div>
+    <div class="stage-box" id="stageBox">
+      <div class="frame"><canvas id="view"></canvas><canvas id="ui"></canvas></div>
+    </div>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <aside class="panel">
+    <section class="step">
+      <h2><span class="n">1</span>Photo</h2>
+      <div class="gallery" id="gallery"></div>
+      <input type="file" id="file" accept="image/*" hidden>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">2</span>Surface size</h2>
+      <p class="note">Measure one side of the orange rectangle. The other side comes from the perspective in the photo.</p>
+      <div class="dims">
+        <label for="inW">Width <span class="field" id="fW"><input id="inW" type="number" step="0.01" min="0.05" inputmode="decimal"><span>m</span></span></label>
+        <label for="inH">Height <span class="field" id="fH"><input id="inH" type="number" step="0.01" min="0.05" inputmode="decimal"><span>m</span></span></label>
+      </div>
+      <label class="check"><input type="checkbox" id="auto" checked><span>Work out the other side from perspective<small>Assumes a phone main camera (focal length about 0.6 of the image diagonal).</small></span></label>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">3</span>Material</h2>
+      <div class="mats" id="mats"></div>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">4</span>Pattern and light</h2>
+      <div class="row">
+        <span class="field seed"><input id="seed" type="number" min="0" step="1" aria-label="Seed"></span>
+        <button class="btn" type="button" id="reseed">New pattern</button>
+      </div>
+      <p class="seedinfo" id="seedinfo"></p>
+      <label class="check"><input type="checkbox" id="persp" checked><span>Perspective<small>Off shows the flat "sticker" look most visualizers have.</small></span></label>
+      <label class="check"><input type="checkbox" id="shade" checked><span>Keep the photo's light and shadow</span></label>
+      <div class="range"><label for="strength">Shadow strength</label><output id="strengthOut"></output><input id="strength" type="range" min="0" max="100" value="90"></div>
+      <div class="range"><label for="detail">Old texture removal</label><output id="detailOut"></output><input id="detail" type="range" min="2" max="16" value="8"></div>
+      <label class="check"><input type="checkbox" id="showLight"><span>Show the light map</span></label>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">5</span>Export</h2>
+      <div class="exports">
+        <button class="btn primary" type="button" id="dlPair">Save before and after</button>
+        <button class="btn" type="button" id="dlResult">Save result only</button>
+        <button class="btn" type="button" id="copySpec">Copy preview spec</button>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<ol class="pipeline" aria-label="How the preview is made">
+  <li class="manual"><h3>Surface <span class="chip todo">Manual</span></h3><p>Four corners plus an add and remove brush. The trained segmentation model replaces this step at M4.</p></li>
+  <li><h3>Plane <span class="chip ok">Working</span></h3><p>A homography from the four corners. The missing side and the area in m² come from perspective.</p></li>
+  <li><h3>Material <span class="chip ok">Working</span></h3><p>Seeded sampling from a sheet cut out of a finished job. Scale is locked to centimetres, only the offset changes.</p></li>
+  <li><h3>Light <span class="chip ok">Working</span></h3><p>A median-filtered light map of the original surface is multiplied over the new material, so shadows stay put.</p></li>
+</ol>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head"><h2 id="dlgTitle"></h2><button class="btn" type="button" id="dlgClose">Close</button></div>
+  <div id="dlgBody"></div>
+  <p class="note" id="dlgNote"></p>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="assets.js"></script>
+<script>
+(() => {
+'use strict';
+
+const ASSETS = window.VIS_ASSETS;
+if (!ASSETS) {
+  document.body.insertAdjacentHTML('afterbegin', '<p class="fatal">assets.js was not found. Keep it in the same folder as index.html.</p>');
+  return;
+}
+
+const $ = (s) => document.querySelector(s);
+const MAX_SIDE = 1600;   // uploads are scaled down to this
+const SHADE_F = 8;       // the light map is computed at 1/8 resolution
+
+/* ---------- Demo scenes (coordinates are in the original photo pixels) ---------- */
+const SCENES = [
+  { id: 'plinth', title: 'Plinth', text: 'Swap stacked stone for green flagstone', photo: 'photo-3', material: 'green-flagstone', seed: 7,
+    quad: [[0, 598], [945, 519], [940, 722], [0, 905]], known: 'h', value: 0.45, auto: true },
+  { id: 'path', title: 'Garden path', text: 'Depth and the house shadow stay', photo: 'photo-6', material: 'beige-paving', seed: 3,
+    quad: [[591, 640], [726, 640], [1300, 1495], [440, 1495]], known: 'w', value: 2.2, auto: true },
+  { id: 'floor', title: 'Unfinished floor', text: 'Continue the tiles over bare screed', photo: 'photo-1', material: 'marble-tile', seed: 1,
+    quad: [[268, 684], [707, 729], [710, 1167], [113, 1109]], known: 'w', value: 0.66, h: 0.66, auto: false, strength: 0.4,
+    add: [[[0, 1098], [1125, 1207], [1125, 1500], [0, 1500]]],
+    erase: [
+      [[268, 684], [707, 729], [710, 1167], [113, 1109]],   // the real tiles stay as they are
+      [[870, 1330], [915, 1318], [960, 1330], [985, 1370], [980, 1420], [965, 1460], [945, 1485], [905, 1488], [870, 1460], [855, 1420], [853, 1370]],
+      [[0, 1420], [40, 1345], [110, 1335], [200, 1345], [280, 1385], [360, 1405], [440, 1425], [475, 1460], [480, 1500], [0, 1500]],
+      [[505, 1440], [545, 1420], [590, 1445], [610, 1490], [600, 1500], [500, 1500]],
+    ] },
+  { id: 'entrance', title: 'Entrance wall', text: 'The bag stays in front of the new wall', photo: 'photo-11', material: 'stacked-sand', seed: 11,
+    quad: [[300, 258], [948, 258], [946, 884], [300, 888]], known: 'w', value: 1.45, auto: true,
+    erase: [[[738, 668], [770, 668], [795, 680], [820, 705], [842, 735], [854, 770], [856, 800], [818, 805], [816, 840], [830, 870],
+             [866, 880], [868, 905], [850, 940], [820, 962], [720, 962], [700, 945], [690, 900], [690, 840], [696, 780], [704, 735], [716, 700]]] },
+];
+
+/* ---------- Colour and random helpers ---------- */
+const TO_LIN = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; TO_LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+const FROM_LIN = new Uint8ClampedArray(4096);
+for (let i = 0; i < 4096; i++) { const c = i / 4095; FROM_LIN[i] = Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); }
+
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+/* ---------- Plane geometry ---------- */
+// Homography (row-major 3x3) mapping the unit square (0,0),(1,0),(1,1),(0,1) onto quad q = [TL, TR, BR, BL].
+function squareToQuad(q) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
+  const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+  const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+  let g = 0, h = 0;
+  if (Math.abs(sx) > 1e-9 || Math.abs(sy) > 1e-9) {
+    const den = dx1 * dy2 - dx2 * dy1;
+    g = (sx * dy2 - dx2 * sy) / den;
+    h = (dx1 * sy - sx * dy1) / den;
+  }
+  return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0,
+          y1 - y0 + g * y1, y3 - y0 + h * y3, y0,
+          g, h, 1];
+}
+function inv3([a, b, c, d, e, f, g, h, i]) {
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+          B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+          C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+// Real width / height of the rectangle seen as quad q. Columns of the homography are K r1 W and K r2 H,
+// and r1, r2 are unit vectors, so W / H = |K^-1 h1| / |K^-1 h2|. Same maths as tools/geometry.py.
+function rectAspect(q, w, h) {
+  const f = 0.6 * Math.hypot(w, h), cx = w / 2, cy = h / 2;
+  const H = squareToQuad(q);
+  const col = (x, y, z) => Math.hypot((x - cx * z) / f, (y - cy * z) / f, z);
+  const r = col(H[0], H[3], H[6]) / col(H[1], H[4], H[7]);
+  return Number.isFinite(r) && r > 0 ? r : 1;
+}
+function polyArea(q) { let s = 0; for (let i = 0; i < q.length; i++) { const [x1, y1] = q[i], [x2, y2] = q[(i + 1) % q.length]; s += x1 * y2 - x2 * y1; } return Math.abs(s) / 2; }
+function pointInPoly(x, y, q) {
+  let inside = false;
+  for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
+    const [xi, yi] = q[i], [xj, yj] = q[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function quickMedian(a, n) {
+  let lo = 0, hi = n - 1; const k = n >> 1;
+  while (lo < hi) {
+    const piv = a[(lo + hi) >> 1]; let i = lo, j = hi;
+    while (i <= j) { while (a[i] < piv) i++; while (a[j] > piv) j--; if (i <= j) { const t = a[i]; a[i] = a[j]; a[j] = t; i++; j--; } }
+    if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+  }
+  return a[k];
+}
+
+/* ---------- State and canvases ---------- */
+const S = {
+  photos: ASSETS.photos.slice(), materials: ASSETS.materials,
+  photo: null, mat: null, matCache: new Map(), scene: null,
+  quad: null, known: 'w', wM: 2, hM: 1, auto: true,
+  seed: 7, perspective: true, shading: true, strength: 0.9, detail: 8, showLight: false,
+  tool: 'corners', brush: 36, mode: 'edit', split: 0.5, margin: 0,
+  maskA: null, bbox: null, shade: null, shadeDirty: true, drag: null, hover: null,
+  area: 0, ms: 0, out: null, placement: null,
+};
+
+const view = $('#view'), ui = $('#ui'), stageBox = $('#stageBox');
+const vctx = view.getContext('2d'), uctx = ui.getContext('2d');
+const mk = (opts) => { const c = document.createElement('canvas'); return [c, c.getContext('2d', opts)]; };
+const [res, rctx] = mk(), [orig, octx] = mk({ willReadFrequently: true }), [maskC, mctx] = mk({ willReadFrequently: true });
+const [addC, actx] = mk(), [eraC, ectx] = mk(), [tint, tctx] = mk();
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error('Could not load image')); img.src = src; });
+}
+
+/* ---------- Photo ---------- */
+async function setPhoto(p) {
+  const img = await loadImage(p.src);
+  const sc = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+  for (const c of [res, orig, maskC, addC, eraC, tint]) { c.width = w; c.height = h; }
+  octx.drawImage(img, 0, 0, w, h);
+  const imgData = octx.getImageData(0, 0, w, h), d = imgData.data;
+  // Low resolution linear luminance, used for the light map.
+  const lw = Math.ceil(w / SHADE_F), lh = Math.ceil(h / SHADE_F);
+  const lum = new Float32Array(lw * lh), cnt = new Float32Array(lw * lh);
+  for (let y = 0; y < h; y++) {
+    const row = ((y / SHADE_F) | 0) * lw;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, li = row + ((x / SHADE_F) | 0);
+      lum[li] += 0.2126 * TO_LIN[d[i]] + 0.7152 * TO_LIN[d[i + 1]] + 0.0722 * TO_LIN[d[i + 2]];
+      cnt[li]++;
+    }
+  }
+  for (let i = 0; i < lum.length; i++) lum[i] /= cnt[i];
+  S.photo = { id: p.id, name: p.name, w, h, sc, imgData, lum, cnt, lw, lh };
+  S.out = new ImageData(w, h);
+  S.maskA = null; S.shade = null; S.shadeDirty = true; S.quad = null; S.dims = null;
+  setMargin();
+  renderGallery();
+}
+
+/* ---------- Material ---------- */
+async function setMaterial(id) {
+  if (!S.matCache.has(id)) {
+    const meta = S.materials.find((m) => m.id === id);
+    const img = await loadImage(meta.src);
+    const [c, x] = mk({ willReadFrequently: true });
+    c.width = img.naturalWidth; c.height = img.naturalHeight; x.drawImage(img, 0, 0);
+    const base = x.getImageData(0, 0, c.width, c.height);
+    // Mip pyramid, so distant stone is averaged instead of shimmering.
+    const mips = [{ w: base.width, h: base.height, d: base.data, sx: 1, sy: 1 }];
+    while (mips.length < 9) {
+      const p = mips[mips.length - 1];
+      if (p.w <= 8 || p.h <= 8) break;
+      const w = Math.ceil(p.w / 2), h = Math.ceil(p.h / 2), d = new Uint8ClampedArray(w * h * 4);
+      for (let y = 0; y < h; y++) {
+        const ya = Math.min(2 * y, p.h - 1) * p.w, yb = Math.min(2 * y + 1, p.h - 1) * p.w;
+        for (let xx = 0; xx < w; xx++) {
+          const xa = Math.min(2 * xx, p.w - 1), xb = Math.min(2 * xx + 1, p.w - 1), o = (y * w + xx) * 4;
+          for (let k = 0; k < 3; k++) d[o + k] = (p.d[(ya + xa) * 4 + k] + p.d[(ya + xb) * 4 + k] + p.d[(yb + xa) * 4 + k] + p.d[(yb + xb) * 4 + k]) / 4;
+          d[o + 3] = 255;
+        }
+      }
+      mips.push({ w, h, d, sx: w / base.width, sy: h / base.height });
+    }
+    S.matCache.set(id, { meta, mips });
+  }
+  S.mat = S.matCache.get(id);
+  renderMaterials();
+}
+
+/* ---------- Mask: corner rectangle + added strokes - removed strokes ---------- */
+function buildMask() {
+  const { w, h } = S.photo;
+  mctx.globalCompositeOperation = 'source-over';
+  mctx.clearRect(0, 0, w, h);
+  mctx.fillStyle = '#fff';
+  mctx.beginPath(); S.quad.forEach(([x, y], i) => (i ? mctx.lineTo(x, y) : mctx.moveTo(x, y))); mctx.closePath(); mctx.fill();
+  mctx.drawImage(addC, 0, 0);
+  mctx.globalCompositeOperation = 'destination-out';
+  mctx.drawImage(eraC, 0, 0);
+  mctx.globalCompositeOperation = 'source-over';
+  const d = mctx.getImageData(0, 0, w, h).data;
+  const a = S.maskA && S.maskA.length === w * h ? S.maskA : new Uint8Array(w * h);
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0, i = 0; y < h; y++) {
+    for (let x = 0; x < w; x++, i++) {
+      const v = d[i * 4 + 3]; a[i] = v;
+      if (v) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+  }
+  S.maskA = a;
+  S.bbox = x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+
+/* ---------- Light map: masked median of the old surface's luminance ---------- */
+function computeShading() {
+  const P = S.photo, { lw, lh, w, h } = P, a = S.maskA;
+  const cover = new Float32Array(lw * lh);
+  for (let y = 0; y < h; y++) {
+    const row = ((y / SHADE_F) | 0) * lw;
+    for (let x = 0; x < w; x++) { const v = a[y * w + x]; if (v) cover[row + ((x / SHADE_F) | 0)] += v; }
+  }
+  const valid = new Uint8Array(lw * lh);
+  for (let i = 0; i < valid.length; i++) valid[i] = cover[i] / (255 * P.cnt[i]) > 0.5 ? 1 : 0;
+
+  // A wide median wipes out the old stones and joints but keeps big steps like a shadow edge.
+  const R = S.detail, buf = new Float32Array((2 * R + 1) * (2 * R + 1)), med = new Float32Array(lw * lh);
+  for (let y = 0; y < lh; y++) {
+    for (let x = 0; x < lw; x++) {
+      const i = y * lw + x; if (!valid[i]) continue;
+      let n = 0;
+      for (let yy = Math.max(0, y - R); yy <= Math.min(lh - 1, y + R); yy++)
+        for (let xx = Math.max(0, x - R); xx <= Math.min(lw - 1, x + R); xx++) { const j = yy * lw + xx; if (valid[j]) buf[n++] = P.lum[j]; }
+      med[i] = quickMedian(buf, n);
+    }
+  }
+  // Light 3x3 smoothing, then normalise so the average surface brightness is 1.
+  const ratio = new Float32Array(lw * lh).fill(-1);
+  let sum = 0, count = 0;
+  for (let y = 0; y < lh; y++) {
+    for (let x = 0; x < lw; x++) {
+      const i = y * lw + x; if (!valid[i]) continue;
+      let s = 0, n = 0;
+      for (let yy = Math.max(0, y - 1); yy <= Math.min(lh - 1, y + 1); yy++)
+        for (let xx = Math.max(0, x - 1); xx <= Math.min(lw - 1, x + 1); xx++) { const j = yy * lw + xx; if (valid[j]) { s += med[j]; n++; } }
+      ratio[i] = s / n; sum += ratio[i]; count++;
+    }
+  }
+  const mean = count ? sum / count : 1;
+  for (let i = 0; i < ratio.length; i++) if (ratio[i] >= 0) ratio[i] = mean > 0 ? ratio[i] / mean : 1;
+  // Grow the map a few cells past the mask edge so sampling at the border never reads empty cells.
+  for (let it = 0; it < 6; it++) {
+    const next = ratio.slice();
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const i = y * lw + x; if (ratio[i] >= 0) continue;
+      let s = 0, n = 0;
+      if (x > 0 && ratio[i - 1] >= 0) { s += ratio[i - 1]; n++; }
+      if (x < lw - 1 && ratio[i + 1] >= 0) { s += ratio[i + 1]; n++; }
+      if (y > 0 && ratio[i - lw] >= 0) { s += ratio[i - lw]; n++; }
+      if (y < lh - 1 && ratio[i + lw] >= 0) { s += ratio[i + lw]; n++; }
+      if (n) next[i] = s / n;
+    }
+    ratio.set(next);
+  }
+  for (let i = 0; i < ratio.length; i++) if (ratio[i] < 0) ratio[i] = 1;
+  S.shade = { ratio, lw, lh };
+  S.shadeDirty = false;
+}
+
+/* ---------- Real size of the corner rectangle ---------- */
+function realDims() {
+  if (!S.auto) return { w: S.wM, h: S.hM };
+  const asp = rectAspect(S.quad, S.photo.w, S.photo.h);
+  return S.known === 'w' ? { w: S.wM, h: S.wM / asp } : { w: S.hM * asp, h: S.hM };
+}
+
+/* ---------- Render ---------- */
+let _r = 0, _g = 0, _b = 0;
+function samp(L, x, y) {
+  const W = L.w, H = L.h, d = L.d;
+  x = x * L.sx - 0.5; y = y * L.sy - 0.5;
+  let x0 = Math.floor(x), y0 = Math.floor(y);
+  const fx = x - x0, fy = y - y0;
+  x0 %= W; if (x0 < 0) x0 += W; y0 %= H; if (y0 < 0) y0 += H;
+  const x1 = x0 + 1 === W ? 0 : x0 + 1, y1 = y0 + 1 === H ? 0 : y0 + 1;
+  const i00 = (y0 * W + x0) << 2, i10 = (y0 * W + x1) << 2, i01 = (y1 * W + x0) << 2, i11 = (y1 * W + x1) << 2;
+  const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+  _r = d[i00] * w00 + d[i10] * w10 + d[i01] * w01 + d[i11] * w11;
+  _g = d[i00 + 1] * w00 + d[i10 + 1] * w10 + d[i01 + 1] * w01 + d[i11 + 1] * w11;
+  _b = d[i00 + 2] * w00 + d[i10 + 2] * w10 + d[i01 + 2] * w01 + d[i11 + 2] * w11;
+}
+
+function render() {
+  if (!S.photo || !S.mat) return;
+  const t0 = performance.now();
+  const P = S.photo, w = P.w, src = P.imgData.data, out = S.out.data;
+  buildMask();
+  if (S.shading && (S.shadeDirty || !S.shade)) computeShading();
+  out.set(src);
+  const bb = S.bbox;
+  let area = 0;
+  const dims = realDims();
+  const meta = S.mat.meta, mips = S.mat.mips, maxL = mips.length - 1;
+
+  // Seeded placement: the seed only moves the sheet (and may mirror it sideways). Never rotation, never scale.
+  const rnd = mulberry32(S.seed);
+  let ox = rnd() * meta.w, oy = rnd() * meta.h, mirror = rnd() < 0.5;
+  if (meta.snap) { ox = 0; oy = 0; mirror = false; }
+  S.placement = { oxCm: ox / meta.w * meta.widthCm, oyCm: oy / meta.h * meta.heightCm, mirror, snap: !!meta.snap };
+
+  if (bb) {
+    const [ia, ib, ic, id, ie, iF, ig, ih, ii] = inv3(squareToQuad(S.quad));
+    const pxCmX = meta.w / meta.widthCm, pxCmY = meta.h / meta.heightCm;
+    const kx = dims.w * 100 * pxCmX, ky = dims.h * 100 * pxCmY;        // unit square -> sheet pixels
+    const imgPxPerCm = Math.sqrt(polyArea(S.quad) / (dims.w * 100 * dims.h * 100));
+    const fX = pxCmX / imgPxPerCm, fY = pxCmY / imgPxPerCm;              // flat "sticker" mode
+    const persp = S.perspective, a = S.maskA, showLight = S.showLight;
+
+    let sh = null, slw = 0, slh = 0;
+    if (S.shading && S.shade) {
+      slw = S.shade.lw; slh = S.shade.lh; sh = new Float32Array(S.shade.ratio.length);
+      const st = S.strength;
+      for (let i = 0; i < sh.length; i++) sh[i] = Math.min(2.4, Math.max(0.12, Math.pow(S.shade.ratio[i], st)));
+    }
+
+    for (let y = bb.y0; y < bb.y1; y++) {
+      const py = y + 0.5;
+      let ty = 0, r0 = 0, r1 = 0;
+      if (sh) {
+        let fy = py / SHADE_F - 0.5; if (fy < 0) fy = 0; if (fy > slh - 1) fy = slh - 1;
+        const yy = fy | 0; ty = fy - yy; r0 = yy * slw; r1 = Math.min(yy + 1, slh - 1) * slw;
+      }
+      for (let x = bb.x0; x < bb.x1; x++) {
+        const i = y * w + x, m = a[i];
+        if (!m) continue;
+        const px = x + 0.5;
+        const Wd = ig * px + ih * py + ii;
+        if (Wd <= 1e-12) continue;                                        // past the horizon
+        const u = (ia * px + ib * py + ic) / Wd, v = (id * px + ie * py + iF) / Wd;
+        const dudx = (ia - u * ig) / Wd, dudy = (ib - u * ih) / Wd, dvdx = (id - v * ig) / Wd, dvdy = (ie - v * ih) / Wd;
+        const am = m / 255;
+        area += Math.abs(dudx * dvdy - dudy * dvdx) * am;                  // this pixel's share of the real surface
+
+        let sx, sy, fp;
+        if (persp) {
+          sx = u * kx; sy = v * ky;
+          fp = Math.max(Math.hypot(dudx * kx, dvdx * ky), Math.hypot(dudy * kx, dvdy * ky));
+        } else {
+          sx = (px - bb.x0) * fX; sy = (py - bb.y0) * fY; fp = Math.max(fX, fY);
+        }
+        if (mirror) sx = -sx;
+        sx += ox; sy += oy;
+
+        let lod = fp > 1 ? Math.log2(fp) : 0; if (lod > maxL) lod = maxL;
+        const l0 = lod | 0, t = lod - l0;
+        samp(mips[l0], sx, sy);
+        let r = _r, g = _g, b = _b;
+        if (t > 0.02 && l0 < maxL) { samp(mips[l0 + 1], sx, sy); r += (_r - r) * t; g += (_g - g) * t; b += (_b - b) * t; }
+
+        if (sh) {
+          let fx = px / SHADE_F - 0.5; if (fx < 0) fx = 0; if (fx > slw - 1) fx = slw - 1;
+          const xx = fx | 0, tx = fx - xx, x2 = Math.min(xx + 1, slw - 1);
+          const k = (sh[r0 + xx] * (1 - tx) + sh[r0 + x2] * tx) * (1 - ty) + (sh[r1 + xx] * (1 - tx) + sh[r1 + x2] * tx) * ty;
+          if (showLight) {
+            r = g = b = FROM_LIN[Math.min(4095, (k * 0.45 * 4095) | 0)];
+          } else {
+            r = FROM_LIN[Math.min(4095, (TO_LIN[(r + 0.5) | 0] * k * 4095) | 0)];
+            g = FROM_LIN[Math.min(4095, (TO_LIN[(g + 0.5) | 0] * k * 4095) | 0)];
+            b = FROM_LIN[Math.min(4095, (TO_LIN[(b + 0.5) | 0] * k * 4095) | 0)];
+          }
+        }
+        const o = i << 2;
+        out[o] = src[o] + (r - src[o]) * am;
+        out[o + 1] = src[o + 1] + (g - src[o + 1]) * am;
+        out[o + 2] = src[o + 2] + (b - src[o + 2]) * am;
+      }
+    }
+    area *= dims.w * dims.h;
+  }
+  rctx.putImageData(S.out, 0, 0);
+  S.area = area; S.dims = dims; S.ms = performance.now() - t0;
+  draw();
+  updateReadouts();
+}
+
+let queued = false;
+function scheduleRender() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
+
+/* ---------- Stage drawing ---------- */
+function setMargin() {
+  const P = S.photo; if (!P) return;
+  S.margin = S.mode === 'edit' ? Math.round(Math.max(P.w, P.h) * 0.08) : 0;
+  view.width = ui.width = P.w + 2 * S.margin;
+  view.height = ui.height = P.h + 2 * S.margin;
+  fitStage();
+}
+function fitStage() {
+  const bw = stageBox.clientWidth - 16, bh = stageBox.clientHeight - 16;
+  const s = Math.min(bw / view.width, bh / view.height);
+  for (const c of [view, ui]) { c.style.width = Math.floor(view.width * s) + 'px'; c.style.height = Math.floor(view.height * s) + 'px'; }
+  drawUI();
+}
+const pxPerCss = () => view.width / (view.getBoundingClientRect().width || view.width);
+
+function draw() {
+  const P = S.photo, m = S.margin;
+  vctx.clearRect(0, 0, view.width, view.height);
+  vctx.drawImage(res, m, m);
+  if (S.mode === 'compare') {
+    const sx = Math.max(1, Math.round(P.w * S.split));
+    vctx.drawImage(orig, 0, 0, sx, P.h, m, m, sx, P.h);
+  }
+  drawUI();
+}
+
+function tinted(src, color) {
+  tctx.globalCompositeOperation = 'copy'; tctx.drawImage(src, 0, 0);
+  tctx.globalCompositeOperation = 'source-in'; tctx.fillStyle = color; tctx.fillRect(0, 0, tint.width, tint.height);
+  tctx.globalCompositeOperation = 'source-over';
+  return tint;
+}
+
+function drawUI() {
+  const P = S.photo; if (!P || !S.quad) return;
+  const m = S.margin, k = pxPerCss(), accent = css('--accent');
+  uctx.clearRect(0, 0, ui.width, ui.height);
+  if (S.mode === 'edit') {
+    if (S.tool !== 'corners') {
+      uctx.globalAlpha = 0.45; uctx.drawImage(tinted(eraC, css('--erase')), m, m);
+      uctx.globalAlpha = 0.3; uctx.drawImage(tinted(addC, accent), m, m);
+      uctx.globalAlpha = 1;
+    }
+    uctx.save(); uctx.translate(m, m);
+    uctx.lineWidth = 2 * k; uctx.strokeStyle = accent; uctx.setLineDash([9 * k, 6 * k]);
+    uctx.beginPath(); S.quad.forEach(([x, y], i) => (i ? uctx.lineTo(x, y) : uctx.moveTo(x, y))); uctx.closePath(); uctx.stroke();
+    uctx.setLineDash([]);
+    S.quad.forEach(([x, y], i) => {
+      uctx.beginPath(); uctx.arc(x, y, (S.hover === i ? 11 : 9) * k, 0, Math.PI * 2);
+      uctx.fillStyle = accent; uctx.fill(); uctx.lineWidth = 2.5 * k; uctx.strokeStyle = '#fff'; uctx.stroke();
+    });
+    // Size label along the top edge.
+    if (S.dims) {
+      const [a, b] = S.quad, lx = (a[0] + b[0]) / 2, ly = (a[1] + b[1]) / 2 - 16 * k;
+      const txt = `${S.dims.w.toFixed(2)} m`;
+      uctx.font = `600 ${13 * k}px "IBM Plex Mono", Consolas, monospace`;
+      const tw = uctx.measureText(txt).width + 12 * k;
+      uctx.fillStyle = accent; uctx.fillRect(lx - tw / 2, ly - 11 * k, tw, 22 * k);
+      uctx.fillStyle = css('--accent-ink'); uctx.textAlign = 'center'; uctx.textBaseline = 'middle'; uctx.fillText(txt, lx, ly);
+    }
+    uctx.restore();
+    if (S.tool !== 'corners' && S.cursor) {
+      uctx.beginPath(); uctx.arc(S.cursor[0] + m, S.cursor[1] + m, S.brush, 0, Math.PI * 2);
+      uctx.lineWidth = 1.5 * k; uctx.strokeStyle = '#fff'; uctx.stroke();
+      uctx.lineWidth = 1.5 * k; uctx.strokeStyle = '#000'; uctx.setLineDash([4 * k, 4 * k]); uctx.stroke(); uctx.setLineDash([]);
+    }
+  } else if (S.mode === 'compare') {
+    const x = P.w * S.split;
+    uctx.fillStyle = '#fff'; uctx.fillRect(x - 1.5 * k, 0, 3 * k, P.h);
+    uctx.beginPath(); uctx.arc(x, P.h / 2, 16 * k, 0, Math.PI * 2); uctx.fillStyle = '#fff'; uctx.fill();
+    uctx.fillStyle = '#1b1e1d'; uctx.beginPath();
+    uctx.moveTo(x - 4 * k, P.h / 2 - 6 * k); uctx.lineTo(x - 10 * k, P.h / 2); uctx.lineTo(x - 4 * k, P.h / 2 + 6 * k);
+    uctx.moveTo(x + 4 * k, P.h / 2 - 6 * k); uctx.lineTo(x + 10 * k, P.h / 2); uctx.lineTo(x + 4 * k, P.h / 2 + 6 * k); uctx.fill();
+    const pill = (txt, px, align) => {
+      uctx.font = `600 ${13 * k}px "Public Sans", "Segoe UI", sans-serif`;
+      const tw = uctx.measureText(txt).width + 16 * k, bx = align === 'left' ? px : px - tw;
+      uctx.fillStyle = 'rgba(0,0,0,.6)'; uctx.fillRect(bx, 12 * k, tw, 24 * k);
+      uctx.fillStyle = '#fff'; uctx.textAlign = 'left'; uctx.textBaseline = 'middle'; uctx.fillText(txt, bx + 8 * k, 24 * k);
+    };
+    pill('Before', 12 * k, 'left');
+    pill('After', P.w - 12 * k, 'right');
+  }
+}
+
+/* ---------- Pointer input ---------- */
+function toImg(e) {
+  const r = ui.getBoundingClientRect(), k = ui.width / r.width;
+  return [(e.clientX - r.left) * k - S.margin, (e.clientY - r.top) * k - S.margin];
+}
+function hitCorner(x, y) { const k = pxPerCss(); return S.quad.findIndex(([qx, qy]) => Math.hypot(qx - x, qy - y) < 18 * k); }
+function clampPt(x, y) { const m = S.margin, P = S.photo; return [Math.max(-m, Math.min(P.w + m, x)), Math.max(-m, Math.min(P.h + m, y))]; }
+
+function paint(x0, y0, x1, y1) {
+  const adding = S.tool === 'add', on = adding ? actx : ectx, off = adding ? ectx : actx;
+  for (const [c, op] of [[on, 'source-over'], [off, 'destination-out']]) {
+    c.globalCompositeOperation = op; c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = 2 * S.brush;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1 + 0.01, y1); c.stroke();
+    c.globalCompositeOperation = 'source-over';
+  }
+}
+
+ui.addEventListener('pointerdown', (e) => {
+  if (!S.photo) return;
+  const [x, y] = toImg(e);
+  if (S.mode === 'compare') {
+    S.drag = { type: 'split' }; S.split = Math.max(0, Math.min(1, x / S.photo.w)); draw();
+  } else if (S.mode === 'edit') {
+    if (S.tool === 'corners') {
+      const hit = hitCorner(x, y);
+      if (hit >= 0) S.drag = { type: 'corner', i: hit };
+      else if (pointInPoly(x, y, S.quad)) S.drag = { type: 'move', x, y, q: S.quad.map((p) => p.slice()) };
+      else return;
+    } else {
+      S.drag = { type: 'paint', last: [x, y] }; paint(x, y, x, y); scheduleRender();
+    }
+  } else return;
+  ui.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+ui.addEventListener('pointermove', (e) => {
+  if (!S.photo) return;
+  const [x, y] = toImg(e);
+  const d = S.drag;
+  if (!d) {
+    if (S.mode === 'edit' && S.tool === 'corners') {
+      const h = hitCorner(x, y);
+      if (h !== S.hover) { S.hover = h; drawUI(); }
+      ui.style.cursor = h >= 0 ? 'grab' : pointInPoly(x, y, S.quad) ? 'move' : 'default';
+    } else if (S.mode === 'edit') { S.cursor = [x, y]; ui.style.cursor = 'none'; drawUI(); }
+    else ui.style.cursor = S.mode === 'compare' ? 'ew-resize' : 'default';
+    return;
+  }
+  if (d.type === 'split') { S.split = Math.max(0, Math.min(1, x / S.photo.w)); draw(); return; }
+  if (d.type === 'corner') { S.quad[d.i] = clampPt(x, y); ui.style.cursor = 'grabbing'; }
+  else if (d.type === 'move') { const dx = x - d.x, dy = y - d.y; S.quad = d.q.map(([qx, qy]) => clampPt(qx + dx, qy + dy)); }
+  else if (d.type === 'paint') { paint(d.last[0], d.last[1], x, y); d.last = [x, y]; S.cursor = [x, y]; }
+  markSceneDirty();
+  scheduleRender();
+});
+function endDrag() {
+  if (!S.drag) return;
+  const type = S.drag.type; S.drag = null;
+  if (type !== 'split') { S.shadeDirty = true; scheduleRender(); }
+}
+ui.addEventListener('pointerup', endDrag);
+ui.addEventListener('pointercancel', endDrag);
+ui.addEventListener('pointerleave', () => { if (S.cursor && !S.drag) { S.cursor = null; drawUI(); } });
+
+/* ---------- Panel rendering ---------- */
+function renderScenes() {
+  const box = $('#scenes'); box.textContent = '';
+  for (const sc of SCENES) {
+    const p = S.photos.find((x) => x.id === sc.photo);
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'scene'; b.setAttribute('aria-pressed', String(S.scene === sc.id));
+    b.innerHTML = `<img alt="" src="${p.src}"><span><b>${sc.title}</b><span>${sc.text}</span></span>`;
+    b.addEventListener('click', () => loadScene(sc));
+    box.append(b);
+  }
+}
+function renderGallery() {
+  const g = $('#gallery'); g.textContent = '';
+  const up = document.createElement('button');
+  up.type = 'button'; up.className = 'upload';
+  up.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Your photo';
+  up.addEventListener('click', () => $('#file').click());
+  g.append(up);
+  for (const p of S.photos) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.title = p.name; b.setAttribute('aria-label', p.name);
+    b.setAttribute('aria-pressed', String(S.photo && S.photo.id === p.id));
+    const img = document.createElement('img'); img.alt = ''; img.src = p.src; img.loading = 'lazy';
+    b.append(img);
+    b.addEventListener('click', () => choosePhoto(p));
+    g.append(b);
+  }
+}
+function renderMaterials() {
+  const box = $('#mats'); box.textContent = '';
+  for (const m of S.materials) {
+    const src = S.photos.find((p) => p.id === m.sourcePhoto);
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'mat'; b.setAttribute('aria-pressed', String(S.mat && S.mat.meta.id === m.id));
+    b.innerHTML = `<img alt="" src="${m.src}"><span><span class="name">${m.name}</span>`
+      + `<span class="meta">${m.kind}<br>sheet ${Math.round(m.widthCm)} × ${Math.round(m.heightCm)} cm · from photo ${src ? src.id.split('-')[1] : '?'}</span></span>`;
+    b.addEventListener('click', async () => { await setMaterial(m.id); markSceneDirty(); render(); });
+    box.append(b);
+  }
+}
+function syncControls() {
+  for (const b of document.querySelectorAll('#modes button')) b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
+  for (const b of document.querySelectorAll('#tools button')) b.setAttribute('aria-pressed', String(b.dataset.tool === S.tool));
+  $('#tools').hidden = S.mode !== 'edit';
+  $('#brushWrap').hidden = S.mode !== 'edit' || S.tool === 'corners';
+  $('#brush').value = S.brush;
+  $('#auto').checked = S.auto;
+  $('#seed').value = S.seed;
+  $('#persp').checked = S.perspective;
+  $('#shade').checked = S.shading;
+  $('#strength').value = Math.round(S.strength * 100);
+  $('#strengthOut').textContent = Math.round(S.strength * 100) + '%';
+  $('#detail').value = S.detail;
+  $('#detailOut').textContent = `${S.detail * SHADE_F * 2} px`;
+  $('#showLight').checked = S.showLight;
+  const hints = {
+    corners: 'Drag the orange corners onto a rectangle that lies flat on the surface (a plinth strip, a stretch of path). Drag inside it to move it.',
+    add: 'Paint to add more of the same surface. It uses the same plane, so it stays in perspective.',
+    erase: 'Paint over things in front of the surface (a pipe, a bag, a tool) so they stay in the picture.',
+  };
+  $('#hint').textContent = S.mode === 'edit' ? hints[S.tool]
+    : S.mode === 'compare' ? 'Drag across the photo to compare the original with the preview.'
+    : 'The finished preview, as a customer would see it.';
+  renderScenes();
+}
+function updateReadouts() {
+  const d = S.dims || realDims();
+  $('#rDims').textContent = `${d.w.toFixed(2)} × ${d.h.toFixed(2)} m`;
+  $('#rArea').textContent = `${S.area.toFixed(2)} m²`;
+  $('#rMs').textContent = `${Math.round(S.ms)} ms`;
+  const inW = $('#inW'), inH = $('#inH');
+  const autoW = S.auto && S.known === 'h', autoH = S.auto && S.known === 'w';
+  if (document.activeElement !== inW) inW.value = d.w.toFixed(2);
+  if (document.activeElement !== inH) inH.value = d.h.toFixed(2);
+  $('#fW').classList.toggle('auto', autoW); $('#fH').classList.toggle('auto', autoH);
+  inW.title = autoW ? 'Worked out from perspective' : ''; inH.title = autoH ? 'Worked out from perspective' : '';
+  const p = S.placement;
+  $('#seedinfo').textContent = !p ? '' : p.snap
+    ? 'Tiles stay on their grout grid, so the seed only matters for natural stone.'
+    : `Offset ${p.oxCm.toFixed(0)} × ${p.oyCm.toFixed(0)} cm${p.mirror ? ', mirrored sideways' : ''}. Same seed, same preview: the seed is saved with a quote request.`;
+}
+
+/* ---------- Scene and photo loading ---------- */
+function markSceneDirty() { if (S.scene) { S.scene = null; renderScenes(); } }
+function drawPolys(ctx, polys, sc) {
+  ctx.fillStyle = '#fff';
+  for (const poly of polys || []) { ctx.beginPath(); poly.forEach(([x, y], i) => (i ? ctx.lineTo(x * sc, y * sc) : ctx.moveTo(x * sc, y * sc))); ctx.closePath(); ctx.fill(); }
+}
+async function loadScene(sc) {
+  const p = S.photos.find((x) => x.id === sc.photo);
+  S.mode = 'edit';
+  await setPhoto(p);
+  const s = S.photo.sc;
+  S.quad = sc.quad.map(([x, y]) => [x * s, y * s]);
+  drawPolys(actx, sc.add, s); drawPolys(ectx, sc.erase, s);
+  S.auto = sc.auto; S.known = sc.known;
+  if (sc.known === 'w') { S.wM = sc.value; S.hM = sc.h || S.hM; } else { S.hM = sc.value; }
+  S.seed = sc.seed; S.strength = sc.strength ?? 0.9; S.tool = 'corners';
+  S.scene = sc.id;
+  await setMaterial(sc.material);
+  setMargin(); syncControls(); render();
+}
+async function choosePhoto(p) {
+  S.mode = 'edit';
+  await setPhoto(p);
+  const { w, h } = S.photo;
+  S.quad = [[w * 0.2, h * 0.5], [w * 0.8, h * 0.5], [w * 0.8, h * 0.8], [w * 0.2, h * 0.8]];
+  S.auto = true; S.known = 'w'; S.wM = 2; S.tool = 'corners'; S.scene = null;
+  setMargin(); syncControls(); render();
+}
+
+/* ---------- Controls ---------- */
+$('#modes').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.mode = b.dataset.mode; setMargin(); syncControls(); draw();
+});
+$('#tools').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.tool = b.dataset.tool; S.cursor = null; syncControls(); drawUI();
+});
+$('#brush').addEventListener('input', (e) => { S.brush = +e.target.value; drawUI(); });
+$('#inW').addEventListener('input', (e) => { const v = parseFloat(e.target.value); if (v > 0) { S.wM = v; S.known = 'w'; if (!S.auto) S.hM = S.dims ? S.dims.h : S.hM; markSceneDirty(); scheduleRender(); } });
+$('#inH').addEventListener('input', (e) => { const v = parseFloat(e.target.value); if (v > 0) { S.hM = v; S.known = 'h'; if (!S.auto) S.wM = S.dims ? S.dims.w : S.wM; markSceneDirty(); scheduleRender(); } });
+$('#auto').addEventListener('change', (e) => { const d = realDims(); S.wM = d.w; S.hM = d.h; S.auto = e.target.checked; markSceneDirty(); scheduleRender(); });
+$('#seed').addEventListener('input', (e) => { const v = parseInt(e.target.value, 10); if (v >= 0) { S.seed = v; markSceneDirty(); scheduleRender(); } });
+$('#reseed').addEventListener('click', () => { S.seed = Math.floor(Math.random() * 10000); $('#seed').value = S.seed; markSceneDirty(); render(); });
+$('#persp').addEventListener('change', (e) => { S.perspective = e.target.checked; render(); });
+$('#shade').addEventListener('change', (e) => { S.shading = e.target.checked; render(); });
+$('#strength').addEventListener('input', (e) => { S.strength = e.target.value / 100; $('#strengthOut').textContent = e.target.value + '%'; scheduleRender(); });
+$('#detail').addEventListener('input', (e) => { S.detail = +e.target.value; $('#detailOut').textContent = `${S.detail * SHADE_F * 2} px`; S.shadeDirty = true; scheduleRender(); });
+$('#showLight').addEventListener('change', (e) => { S.showLight = e.target.checked; render(); });
+
+$('#file').addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const p = { id: 'upload-' + Date.now(), name: f.name, src: URL.createObjectURL(f) };
+  S.photos.unshift(p); e.target.value = '';
+  try { await choosePhoto(p); } catch { toast('That file could not be opened as an image.'); }
+});
+stageBox.addEventListener('dragover', (e) => e.preventDefault());
+stageBox.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith('image/')); if (!f) return;
+  const p = { id: 'upload-' + Date.now(), name: f.name, src: URL.createObjectURL(f) };
+  S.photos.unshift(p); await choosePhoto(p);
+});
+
+// Exports open in a dialog instead of downloading, so they also work where pages may not start downloads.
+const dlg = $('#dlg');
+function openDialog(title, node, note) {
+  $('#dlgTitle').textContent = title;
+  const body = $('#dlgBody'); body.textContent = ''; body.append(node);
+  $('#dlgNote').textContent = note;
+  if (!dlg.open) dlg.showModal();
+}
+$('#dlgClose').addEventListener('click', () => dlg.close());
+function showImage(c, title) {
+  const img = new Image(); img.alt = title; img.src = c.toDataURL('image/jpeg', 0.92);
+  openDialog(title, img, 'Right-click the image and choose "Save image as". On a phone, press and hold it.');
+}
+$('#dlPair').addEventListener('click', () => {
+  const P = S.photo, gap = 16, head = 56;
+  const [c, x] = mk(); c.width = P.w * 2 + gap; c.height = P.h + head;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(orig, 0, head); x.drawImage(res, P.w + gap, head);
+  x.fillStyle = '#1b1e1d'; x.font = '600 26px "Public Sans", "Segoe UI", sans-serif'; x.textBaseline = 'middle';
+  x.fillText('Before', 10, head / 2); x.fillText(`After: ${S.mat.meta.name}`, P.w + gap + 10, head / 2);
+  showImage(c, 'Before and after');
+});
+$('#dlResult').addEventListener('click', () => showImage(res, 'Result'));
+$('#copySpec').addEventListener('click', () => {
+  const d = S.dims || realDims();
+  const spec = {
+    photo: S.photo.id, material: S.mat.meta.id, seed: S.seed,
+    corners: S.quad.map((p) => p.map((v) => Math.round(v))),
+    widthM: +d.w.toFixed(3), heightM: +d.h.toFixed(3), areaM2: +S.area.toFixed(2),
+    perspective: S.perspective, shadowStrength: S.shading ? S.strength : 0,
+  };
+  const text = JSON.stringify(spec, null, 2);
+  const showSpec = () => {
+    const pre = document.createElement('pre'); pre.textContent = text;
+    openDialog('Preview spec', pre, 'Copy was blocked here, so select the text above and copy it by hand.');
+    getSelection().selectAllChildren(pre);
+  };
+  try { navigator.clipboard.writeText(text).then(() => toast('Preview spec copied'), showSpec); } catch { showSpec(); }
+});
+
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
+
+new ResizeObserver(() => fitStage()).observe(stageBox);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawUI());
+
+loadScene(SCENES[0]).catch((err) => { console.error(err); toast('Something went wrong while loading the demo.'); });
+})();
+</script>
+</body>
+</html>
